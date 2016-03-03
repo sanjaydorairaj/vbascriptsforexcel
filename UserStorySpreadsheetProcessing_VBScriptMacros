@@ -1,0 +1,239 @@
+Sub formatUserStories()
+ 
+    Application.DisplayAlerts = False
+    
+    ' initialize last Tags Index to zero
+    Dim lastTagRow(1000) As Integer
+    For i = 1 To 1000
+        lastTagRow(i) = 1
+    Next
+    
+    Dim maxRows, userStoryEndRow, userStoryStartRow, userStoryRowCount As Integer
+    Dim objRange As range
+    
+    Dim ActSheet As Worksheet
+    Set ActSheet = ActiveSheet
+    ActSheet.Select
+    
+    maxRows = 1000
+    
+    result = MsgBox("Confirm that last row has the string End in it", vbYesNo)
+    If result = vbNo Then
+        Exit Sub
+    End If
+    
+     ' Process each user story
+     For i = 2 To maxRows
+        If ActSheet.Cells(i, 1) = "End" Then
+            Exit For
+        End If
+        
+        If Not IsEmpty(ActSheet.Cells(i, 1)) Then
+        
+               ' We have a user story - lets format it
+               userStoryStartRow = i
+               For j = userStoryStartRow + 1 To maxRows
+                    If Not IsEmpty(ActSheet.Cells(j, 1)) Then
+                        
+                        ' We have reached our next user story
+                        userStoryEndRow = j - 1
+                        userStoryRowCount = userStoryEndRow - userStoryStartRow + 1
+                        
+                        'reset i so the loop continues with the next user story
+                         i = userStoryStartRow
+                        
+                        ' Check if there is anything to merge, if not move to the next user story
+                        If userStoryRowCount = 1 Then
+                            Exit For
+                        End If
+                        
+                        ' Ok, we have something to merge - let's merge
+                         CombineCells userStoryStartRow, userStoryEndRow, lastTagRow
+
+                        Exit For
+                        
+                    End If
+               Next
+               
+        End If
+    Next
+    
+    result = MsgBox("Do you want to delete the original Elaboration column", vbYesNo)
+    If result = vbNo Then
+        Exit Sub
+    End If
+
+    'Autosize rows and columns
+    Set objRange = ActSheet.UsedRange
+    objRange.EntireColumn.AutoFit
+    objRange.EntireRow.AutoFit
+    objRange.Columns(3).Delete
+    
+End Sub
+Sub CombineCells(startRow, endRow, lastTagRow)
+
+    Dim finalValue As String
+    Dim first As Boolean
+    Dim cell As Excel.range
+    Dim firstrow, firstcol, colcount, maxRows As Integer
+   Dim objRange As range
+   Dim TagsSheet As Worksheet
+   Dim userStoryColumn As Integer
+
+    Dim tagColumn As Integer
+    Dim tagCellContents As String
+    Dim tagsList() As String
+    
+    Dim elaborationColumn As Integer
+    
+    Dim ActSheet As Worksheet
+    Set ActSheet = ActiveSheet
+    ActSheet.Select
+
+    Dim SelRange As range
+    
+    first = True
+    maxRows = endRow - startRow + 1
+    
+   ' Set the range of impacted cells
+   elaborationColumn = 3
+   Set SelRange = range(Cells(startRow, elaborationColumn), Cells(endRow, elaborationColumn))
+   SelRange.Select
+    
+    For Each cell In SelRange.Cells
+        If first = True Then
+                first = False
+                finalValue = finalValue & CStr(cell.Value)
+        Else
+                finalValue = finalValue & vbCrLf & vbCrLf & CStr(cell.Value)
+        End If
+    Next cell
+
+    ActSheet.Cells(startRow, elaborationColumn + 1) = finalValue
+    
+    ' Concatenate Cells
+    For colcount = 1 To 6
+        ActSheet.range(Cells(startRow, colcount), Cells(startRow + maxRows - 1, colcount)).Merge
+    Next colcount
+    
+    'Merge cells
+    For rowcount = startRow + 1 To startRow + maxRows - 1
+        ActSheet.Rows(startRow + 1).Delete x1ShiftUp
+    Next rowcount
+    
+    'Classify by tag - parse tags into an array
+    tagColumn = 2
+    tagCellContents = Cells(startRow, tagColumn)
+    tagsList = Split(tagCellContents, ",")
+    
+    'populate tags worksheet with corresponding user story
+    userStoryColumn = 1
+    Set TagsSheet = Worksheets(2)
+    For i = 0 To UBound(tagsList)
+        For j = 1 To TagsSheet.UsedRange.Columns.Count
+        
+            ' is there a tag match
+            If tagsList(i) = CStr(TagsSheet.Cells(1, j)) Then
+                lastTagRow(j) = lastTagRow(j) + 1
+                TagsSheet.Columns.Cells(lastTagRow(j), j) = ActSheet.Cells(startRow, userStoryColumn)
+                Exit For
+            End If
+        Next j
+    Next i
+    
+    
+End Sub
+
+Sub initializeTagWorksheet()
+
+    Dim tagsList() As String
+    Dim uniqueTagsList() As String
+    Dim tagsStr As String
+    Dim first As Boolean
+    
+    Dim ActSheet As Worksheet
+    Dim TagsSheet As Worksheet
+    Dim SelRange As range
+    
+    Set ActSheet = ActiveSheet
+    Set SelRange = Selection
+    
+    ActSheet.Select
+    SelRange.Select
+    
+    'create a comma separated list of all tags
+    first = True
+    For Each cell In SelRange.Cells
+        If first = True Then
+                first = False
+                tagsStr = tagsStr & CStr(cell.Value)
+        Else
+                tagsStr = tagsStr & "," & CStr(cell.Value)
+        End If
+    Next cell
+    
+    'parse comma separated list of tags and add as column headers to new spreadsheet
+    tagsList = Split(tagsStr, ",")
+    uniqueTagsList = RemoveDups(tagsList)
+    uniqueTagsList = CleanUpArray(uniqueTagsList)
+    
+    'set as column headers in new worksheet
+    Set TagsSheet = Worksheets(2)
+    
+    For i = 1 To UBound(uniqueTagsList)
+        TagsSheet.Cells(1, i) = uniqueTagsList(i)
+    Next
+    
+End Sub
+
+Public Function RemoveDups(strings() As String) As String()
+Dim old_i As Integer
+Dim last_i As Integer
+Dim result() As String
+
+    ' Make the result array.
+    ReDim result(1 To UBound(strings))
+
+    ' Copy the first item into the result array.
+    result(1) = strings(1)
+
+    ' Copy the other items
+    last_i = 1
+    For old_i = 2 To UBound(strings)
+        If result(last_i) <> strings(old_i) Then
+            last_i = last_i + 1
+            result(last_i) = strings(old_i)
+        End If
+    Next old_i
+
+    RemoveDups = result
+End Function
+
+ Function CleanUpArray(strings() As String) As String()
+ 
+  Dim i As Integer
+  Dim newCount As Integer
+  
+  For i = 1 To UBound(strings)
+    If strings(i) = "" Then
+        For x = i To UBound(strings) - 1
+            strings(x) = strings(x + 1)
+        Next
+    End If
+  Next i
+  
+  'Identify first empty string
+  For i = 1 To UBound(strings)
+    If strings(i) = "" Then
+          newCount = i
+          Exit For
+    End If
+  Next i
+
+    ' Make the result array.
+    ReDim Preserve strings(1 To newCount - 1)
+    
+    CleanUpArray = strings
+    
+End Function
+
