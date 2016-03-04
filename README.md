@@ -18,6 +18,7 @@ User Story Summary 1	Tag 1, Tag 2, Tag 3	1) Story line 1		Ref 1, Ref 2, Ref 3
 If we are interested in grouping the Customer User Story column by the tags (i.e. the group label in this case) in the Tag column or by Traceibility references in the Traceability column, we can achieve that using these scripts.
 
 Usage:
+-----
 
 1. Open Microsoft Excel.  
 2. Select Tools->Macro->Visual Basic Editor
